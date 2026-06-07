@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "api/scan.js": {
+      "runtime": "edge"
+    }
+  },
+  "routes": [
+    { "src": "/api/scan", "dest": "/api/scan.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
