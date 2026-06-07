@@ -396,7 +396,7 @@ textarea.fi{min-height:66px;resize:vertical}
 <script>
 // ══ CONFIG ════════════════════════════════════════════════
 var PWD   = '1234';
-var AKEY  = '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';
+var AKEY  = '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';
 var CLOUD = 'da05dxv6v';
 
 // ══ STATE ═════════════════════════════════════════════════
@@ -732,43 +732,13 @@ function b64toBlob(dataUrl){
 }
 
 function aiScan(b64,mime){
-  var sys='You are an expert receipt scanner for a home and car asset management app in Saudi Arabia.\n'
-    +'Receipts may be in Arabic, English, or both.\n'
-    +'Arabic terms to know: فاتورة=invoice, ضمان=warranty, سنة=year, سنتان=2 years, تاريخ=date, السعر/المبلغ=price, المتجر=store, موديل=model, رقم تسلسلي=serial.\n'
-    +'RULES:\n'
-    +'1. Extract ALL visible info carefully.\n'
-    +'2. Translate Arabic values to English. Keep brand/store names as-is.\n'
-    +'3. If a field is not on the receipt, set it to null — never guess silently.\n'
-    +'4. If you assume something (e.g. standard warranty period), explain it in assumptions[].\n'
-    +'5. If something is unclear, put it in questions[] for the user to answer.\n'
-    +'6. If warranty duration is stated (e.g. ضمان سنتان = 2 years), calculate the expiry date from the purchase date. Today is '+today()+'.\n'
-    +'7. For category pick one of: Devices, Furniture, AC & HVAC, Plumbing, Electrical, Ceramic & Tiles, Gypsum, Doors & Windows, Paint, Car, Other.\n'
-    +'8. Return ONLY valid JSON with no markdown, no explanation:\n'
-    +'{"name":"","cat":"","brand":null,"model":null,"buy":null,"price":null,"rcpt":null,"store":null,"war":null,"ins":null,"contact":null,"notes":null,"assumptions":[],"questions":[]}';
-
-  return fetch('https://api.anthropic.com/v1/messages',{
+  return fetch('/api/scan',{
     method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key':AKEY,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
-    body:JSON.stringify({
-      model:'claude-opus-4-5',
-      max_tokens:1000,
-      system:sys,
-      messages:[{role:'user',content:[
-        {type:'image',source:{type:'base64',media_type:mime,data:b64}},
-        {type:'text',text:'Scan this receipt carefully. Pay close attention to Arabic text.'}
-      ]}]
-    })
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({image:b64, mediaType:mime})
   }).then(function(r){
-    if(!r.ok) return r.json().then(function(e){ throw new Error(e.error&&e.error.message?e.error.message:'API error '+r.status); });
+    if(!r.ok) return r.json().then(function(e){ throw new Error(e.error||'API error '+r.status); });
     return r.json();
-  }).then(function(d){
-    var raw=d.content.map(function(x){ return x.text||''; }).join('');
-    return JSON.parse(raw.replace(/```json|```/g,'').trim());
   });
 }
 
