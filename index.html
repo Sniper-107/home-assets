@@ -1,19 +1,13 @@
-export const config = { runtime: 'edge' };
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
-      }
-    });
-  }
+  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+  if (req.method !== 'POST') { res.status(405).end(); return; }
 
   try {
-    const { image, mediaType } = await req.json();
+    const { image, mediaType } = req.body;
     const today = new Date().toISOString().split('T')[0];
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -26,38 +20,21 @@ export default async function handler(req) {
       body: JSON.stringify({
         model: 'claude-opus-4-5',
         max_tokens: 1000,
-        system: `You are an expert receipt scanner for a home and car asset management app in Saudi Arabia. Receipts may be in Arabic, English, or both. Arabic terms: فاتورة=invoice, ضمان=warranty, سنة=year, سنتان=2 years, تاريخ=date, السعر=price, المتجر=store, موديل=model, رقم تسلسلي=serial. RULES: 1. Extract ALL visible info. 2. Translate Arabic values to English, keep brand/store names as-is. 3. Missing field = null, never guess. 4. Assumptions go in assumptions[]. 5. Unclear things go in questions[]. 6. If warranty duration stated calculate expiry from purchase date. Today is ${today}. 7. Category must be one of: Devices, Furniture, AC & HVAC, Plumbing, Electrical, Ceramic & Tiles, Gypsum, Doors & Windows, Paint, Car, Other. 8. Return ONLY valid JSON, no markdown: {"name":"","cat":"","brand":null,"model":null,"buy":null,"price":null,"rcpt":null,"store":null,"war":null,"ins":null,"contact":null,"notes":null,"assumptions":[],"questions":[]}`,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: image } },
-            { type: 'text', text: 'Scan this receipt carefully. Pay close attention to Arabic text.' }
-          ]
-        }]
+        system: `You are an expert receipt scanner for a home asset management app in Saudi Arabia. Receipts may be Arabic, English, or both. Arabic: فاتورة=invoice, ضمان=warranty, سنة=year, سنتان=2years, تاريخ=date, السعر=price, المتجر=store. Rules: 1. Extract all visible info. 2. Translate Arabic to English, keep brand names. 3. Missing=null. 4. Assumptions in assumptions[]. 5. Unclear in questions[]. 6. Calculate warranty expiry if duration stated. Today=${today}. 7. Category: Devices,Furniture,AC & HVAC,Plumbing,Electrical,Ceramic & Tiles,Gypsum,Doors & Windows,Paint,Car,Other. 8. Return ONLY JSON: {"name":"","cat":"","brand":null,"model":null,"buy":null,"price":null,"rcpt":null,"store":null,"war":null,"ins":null,"contact":null,"notes":null,"assumptions":[],"questions":[]}`,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: image } },
+          { type: 'text', text: 'Scan this receipt. Pay attention to Arabic text.' }
+        ]}]
       })
     });
 
-    if (!response.ok) {
-      const err = await response.json();
-      return new Response(JSON.stringify({ error: err.error?.message || 'API error' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-      });
-    }
-
     const data = await response.json();
+    if (!response.ok) { res.status(500).json({ error: data.error?.message || 'API error' }); return; }
+
     const raw = data.content.map(x => x.text || '').join('');
     const result = JSON.parse(raw.replace(/```json|```/g, '').trim());
-
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-    });
-
+    res.status(200).json(result);
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-    });
+    res.status(500).json({ error: e.message });
   }
 }
