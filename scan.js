@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -20,21 +20,27 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'claude-opus-4-5',
         max_tokens: 1000,
-        system: `You are an expert receipt scanner for a home asset management app in Saudi Arabia. Receipts may be Arabic, English, or both. Arabic: فاتورة=invoice, ضمان=warranty, سنة=year, سنتان=2years, تاريخ=date, السعر=price, المتجر=store. Rules: 1. Extract all visible info. 2. Translate Arabic to English, keep brand names. 3. Missing=null. 4. Assumptions in assumptions[]. 5. Unclear in questions[]. 6. Calculate warranty expiry if duration stated. Today=${today}. 7. Category: Devices,Furniture,AC & HVAC,Plumbing,Electrical,Ceramic & Tiles,Gypsum,Doors & Windows,Paint,Car,Other. 8. Return ONLY JSON: {"name":"","cat":"","brand":null,"model":null,"buy":null,"price":null,"rcpt":null,"store":null,"war":null,"ins":null,"contact":null,"notes":null,"assumptions":[],"questions":[]}`,
-        messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: image } },
-          { type: 'text', text: 'Scan this receipt. Pay attention to Arabic text.' }
-        ]}]
+        system: 'You are an expert receipt scanner for a home asset management app in Saudi Arabia. Receipts may be Arabic, English, or both. Arabic terms: فاتورة=invoice, ضمان=warranty, سنة=year, سنتان=2years, تاريخ=date, السعر=price, المتجر=store, موديل=model. Rules: 1. Extract all visible info. 2. Translate Arabic values to English, keep brand/store names as-is. 3. Missing field = null, never guess. 4. Assumptions go in assumptions[]. 5. Unclear things go in questions[]. 6. If warranty duration stated calculate expiry from purchase date. Today is ' + today + '. 7. Category must be one of: Devices, Furniture, AC & HVAC, Plumbing, Electrical, Ceramic & Tiles, Gypsum, Doors & Windows, Paint, Car, Other. 8. Return ONLY valid JSON no markdown: {"name":"","cat":"","brand":null,"model":null,"buy":null,"price":null,"rcpt":null,"store":null,"war":null,"ins":null,"contact":null,"notes":null,"assumptions":[],"questions":[]}',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: image } },
+            { type: 'text', text: 'Scan this receipt carefully. Pay close attention to Arabic text.' }
+          ]
+        }]
       })
     });
 
     const data = await response.json();
-    if (!response.ok) { res.status(500).json({ error: data.error?.message || 'API error' }); return; }
+    if (!response.ok) {
+      return res.status(500).json({ error: data.error && data.error.message ? data.error.message : 'API error' });
+    }
 
-    const raw = data.content.map(x => x.text || '').join('');
+    const raw = data.content.map(function(x) { return x.text || ''; }).join('');
     const result = JSON.parse(raw.replace(/```json|```/g, '').trim());
-    res.status(200).json(result);
+    return res.status(200).json(result);
+
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
-}
+};
